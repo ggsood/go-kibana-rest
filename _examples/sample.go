@@ -4,19 +4,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
+	log "github.com/sirupsen/logrus"
 
-	"github.com/disaster37/go-kibana-rest/v7"
-	"github.com/disaster37/go-kibana-rest/v7/kbapi"
+	"github.com/ggsood/go-kibana-rest/v7"
+	"github.com/ggsood/go-kibana-rest/v7/kbapi"
 )
 
 func main() {
 
+	log.SetLevel(log.InfoLevel)
+
+	address := "http://localhost:5601"
+	username := "elastic"
+	password := "password"
+	disableVerifySSL := false
+
 	cfg := kibana.Config{
-		Address:          "http://127.0.0.1:5601",
-		Username:         "elastic",
-		Password:         "changeme",
-		DisableVerifySSL: true,
+		Address:          address,
+		Username:         username,
+		Password:         password,
+		DisableVerifySSL: disableVerifySSL,
 	}
 
 	client, err := kibana.NewClient(cfg)
@@ -39,7 +46,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating shorten URL: %s", err)
 	}
-	log.Println(fmt.Sprintf("http://localhost:5601/goto/%s", shortenURLResponse.ID))
+	log.Println(fmt.Sprintf("%s/goto/%s", address, shortenURLResponse.ID))
 
 	// Create or update Logstash pipeline
 	logstashPipeline := &kbapi.LogstashPipeline{
@@ -47,6 +54,11 @@ func main() {
 		Description: "Sample logstash pipeline",
 		Pipeline:    "input { stdin {} } output { stdout {} }",
 		Settings: map[string]interface{}{
+			"pipeline.batch.delay": 50,
+			"pipeline.batch.size": 125,
+			"pipeline.workers": 1,
+			"queue.checkpoint.writes": 10,
+			"queue.max_bytes": "1gb",
 			"queue.type": "persisted",
 		},
 	}
@@ -76,6 +88,22 @@ func main() {
 		log.Fatalf("Error deleting logstash pipeline: %s", err)
 	}
 	log.Println("Logstash pipeline 'sample' successfully deleted")
+
+	// Delete user space if already exists
+
+	testspace, error := client.API.KibanaSpaces.Get("test")
+	if error != nil {
+		log.Fatalf("Error getting user space: %s", err)
+	}
+
+	if testspace != nil {
+		err = client.API.KibanaSpaces.Delete("test")
+		if err != nil {
+			log.Fatalf("Error deleteing user space: %s", err)
+		}
+		log.Println("User space 'test' successfully deleted")
+
+	}
 
 	// Create user space
 	space := &kbapi.KibanaSpace{
@@ -119,7 +147,7 @@ func main() {
 		Objects: []kbapi.KibanaSpaceObjectParameter{
 			{
 				Type: "config",
-				ID:   "7.4.2",
+				ID:   "7.9.2",
 			},
 		},
 	}
@@ -256,14 +284,15 @@ func main() {
 			"id":   "test",
 		},
 	}
-	resp, err = client.API.KibanaSavedObject.Export(nil, request, true, "default")
-	if err != nil {
+
+	response, error := client.API.KibanaSavedObject.Export(nil, request, true, "default")
+	if error != nil {
 		log.Fatalf("Error exporting index pattern: %s", err)
 	}
-	log.Println(resp)
+	log.Println(response)
 
 	// import index pattern in default user space
-	b, err = json.Marshal(resp)
+	b, err = json.Marshal(response)
 	if err != nil {
 		log.Fatalf("Error converting struct to json")
 	}

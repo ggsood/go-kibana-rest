@@ -21,6 +21,14 @@ type LogstashPipeline struct {
 	Username    string                 `json:"username,omitempty"`
 }
 
+// LogstashPipelineRequest is the logstash pipeline create/update object
+type LogstashPipelineRequest struct {
+	Description string                 `json:"description,omitempty"`
+	Pipeline    string                 `json:"pipeline,omitempty"`
+	Settings    map[string]interface{} `json:"settings,omitempty"`
+	Username    string                 `json:"username,omitempty"`
+}
+
 // LogstashPipelinesList is the logstash pipeline list result when get the list
 type LogstashPipelinesList struct {
 	Pipelines LogstashPipelines `json:"pipelines"`
@@ -112,9 +120,15 @@ func newKibanaLogstashPipelineCreateOrUpdateFunc(c *resty.Client) KibanaLogstash
 			return nil, NewAPIError(600, "You must provide the logstash pipeline object")
 		}
 
-		log.Debug("LogstashPipeline: ", logstashPipeline)
+		pipelineRequest := &LogstashPipelineRequest{
+			Description: logstashPipeline.Description,
+			Pipeline:    logstashPipeline.Pipeline,
+			Settings:    logstashPipeline.Settings,
+		}
 
-		jsonData, err := json.Marshal(logstashPipeline)
+		log.Debug("LogstashPipeline Request: ", pipelineRequest)
+
+		jsonData, err := json.Marshal(pipelineRequest)
 		if err != nil {
 			return nil, err
 		}
